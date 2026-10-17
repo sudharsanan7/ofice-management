@@ -25,7 +25,7 @@ const PERMISSIONS = {
     expenses: ['create', 'read', 'update'],
     events: ['create', 'read', 'update'],
     reports: ['read'],
-    settings: [],
+    settings: ['read'],
     logs: []
   }
 };

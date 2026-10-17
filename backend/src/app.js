@@ -7,9 +7,11 @@ const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 
+const path = require('path');
 const healthRoutes = require('./routes/health.routes');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const settingRoutes = require('./routes/setting.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -68,10 +70,22 @@ app.use(mongoSanitize());
 // 8. Prevent HTTP Parameter Pollution
 app.use(hpp());
 
-// 9. API Routes
+// 9. Static Uploads File Serving (safe headers, non-executable)
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '../uploads'), {
+    dotfiles: 'ignore',
+    setHeaders: (res) => {
+      res.set('X-Content-Type-Options', 'nosniff');
+    }
+  })
+);
+
+// 10. API Routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/settings', settingRoutes);
 
 // 10. 404 Route Handler
 app.use(notFoundHandler);
