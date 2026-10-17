@@ -12,6 +12,7 @@ const healthRoutes = require('./routes/health.routes');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const settingRoutes = require('./routes/setting.routes');
+const clientRoutes = require('./routes/client.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -86,6 +87,7 @@ app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/clients', clientRoutes);
 
 // 10. 404 Route Handler
 app.use(notFoundHandler);

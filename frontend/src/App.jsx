@@ -8,6 +8,7 @@ import { AuthProvider } from './context/AuthContext';
 import Dashboard from './pages/Dashboard/Dashboard';
 import CalendarPage from './pages/Calendar/Calendar';
 import ClientsPage from './pages/Clients/Clients';
+import ClientDetails from './pages/Clients/ClientDetails';
 import QuotationsPage from './pages/Quotations/Quotations';
 import InvoicesPage from './pages/Invoices/Invoices';
 import PaymentsPage from './pages/Payments/Payments';
@@ -38,6 +39,7 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="clients" element={<ClientsPage />} />
+            <Route path="clients/:id" element={<ClientDetails />} />
               <Route path="quotations" element={<QuotationsPage />} />
               <Route path="invoices" element={<InvoicesPage />} />
               <Route path="payments" element={<PaymentsPage />} />
