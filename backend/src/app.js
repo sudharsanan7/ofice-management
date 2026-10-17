@@ -8,6 +8,8 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 
 const healthRoutes = require('./routes/health.routes');
+const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -68,6 +70,8 @@ app.use(hpp());
 
 // 9. API Routes
 app.use('/api', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // 10. 404 Route Handler
 app.use(notFoundHandler);

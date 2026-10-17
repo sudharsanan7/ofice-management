@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   Calendar,
@@ -13,8 +13,10 @@ import {
   Settings,
   History,
   Briefcase,
+  User,
   X
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const navigationItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -31,6 +33,11 @@ const navigationItems = [
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { user, isAdmin } = useAuth();
+
+  // Hide admin-only items if not admin (cosmetic UI hiding; backend enforces permissions)
+  const visibleItems = navigationItems.filter(item => !item.adminOnly || isAdmin);
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -71,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <p className="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase mb-2">
             Workspace
           </p>
-          {navigationItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -89,7 +96,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 <Icon className="w-4 h-4 shrink-0" />
                 <span>{item.name}</span>
                 {item.adminOnly && (
-                  <span className="ml-auto text-[10px] bg-slate-100 text-slate-500 font-medium px-1.5 py-0.5 rounded">
+                  <span className="ml-auto text-[10px] bg-indigo-100 text-indigo-700 font-semibold px-1.5 py-0.5 rounded">
                     Admin
                   </span>
                 )}
@@ -98,17 +105,28 @@ export default function Sidebar({ isOpen, onClose }) {
           })}
         </div>
 
-        {/* User Info / Footer */}
+        {/* User Profile Card */}
         <div className="border-t border-slate-100 p-4">
-          <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs">
-              AD
+          <Link
+            to="/profile"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 p-2.5 border border-slate-100 transition-colors group"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs shrink-0">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
-            <div className="overflow-hidden">
-              <p className="truncate text-xs font-semibold text-slate-900">Admin User</p>
-              <p className="truncate text-[11px] text-slate-500">admin@officeflow.local</p>
+            <div className="overflow-hidden flex-1">
+              <div className="flex items-center justify-between">
+                <p className="truncate text-xs font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                  {user?.name || 'User Profile'}
+                </p>
+              </div>
+              <p className="truncate text-[11px] text-slate-500">
+                {user?.role === 'admin' ? 'Administrator' : 'Team Member'}
+              </p>
             </div>
-          </div>
+            <User className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+          </Link>
         </div>
       </aside>
     </>

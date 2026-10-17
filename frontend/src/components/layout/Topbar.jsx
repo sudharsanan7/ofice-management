@@ -1,7 +1,18 @@
 import React from 'react';
-import { Menu, Bell, Search, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Menu, Bell, Search, LogOut, User, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import Badge from '../common/Badge';
 
 export default function Topbar({ onMenuClick }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white/80 px-4 sm:px-6 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -24,6 +35,18 @@ export default function Topbar({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* User Role Badge */}
+        {user?.role === 'admin' ? (
+          <Badge variant="purple" size="sm" dot>
+            Admin
+          </Badge>
+        ) : (
+          <Badge variant="default" size="sm" dot>
+            Team Member
+          </Badge>
+        )}
+
+        {/* Notifications */}
         <button
           className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus:outline-none"
           title="Notifications"
@@ -34,8 +57,20 @@ export default function Topbar({ onMenuClick }) {
 
         <div className="h-6 w-px bg-slate-200" />
 
+        {/* Profile Link */}
+        <Link
+          to="/profile"
+          className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+          title="My Profile"
+        >
+          <User className="h-4 w-4 text-slate-500" />
+          <span className="hidden sm:inline font-semibold">{user?.name || 'Profile'}</span>
+        </Link>
+
+        {/* Logout */}
         <button
-          className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+          onClick={handleLogout}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           title="Sign out"
         >
           <LogOut className="h-4 w-4" />
