@@ -1,0 +1,385 @@
+openapi: 3.0.3
+info:
+  title: OfficeFlow API
+  version: 1.0.0
+  description: Office management API. JSON success/error envelopes use success, message, data and optional errors.
+servers:
+  - url: http://localhost:5000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiSuccess:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: { type: object }
+        errors: { nullable: true }
+    QuotationItemInput:
+      type: object
+      required: [description, quantity, unitPrice, gstRate]
+      properties:
+        description: { type: string, minLength: 1 }
+        sacCode: { type: string }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unitPrice: { type: number, minimum: 0, description: INR amount }
+        discount: { type: number, minimum: 0, description: Flat INR discount per line }
+        gstRate: { type: number, enum: [0, 5, 12, 18, 28] }
+    QuotationInput:
+      type: object
+      required: [client, validUntil, items]
+      properties:
+        client: { type: string, pattern: '^[a-fA-F0-9]{24}$' }
+        issueDate: { type: string, format: date-time }
+        validUntil: { type: string, format: date-time }
+        items: { type: array, minItems: 1, items: { $ref: '#/components/schemas/QuotationItemInput' } }
+        terms: { type: string }
+        notes: { type: string }
+    Quotation:
+      allOf:
+        - $ref: '#/components/schemas/QuotationInput'
+        - type: object
+          properties:
+            _id: { type: string }
+            quotationNumber: { type: string, example: 'QT/2026-27/0001' }
+            status: { type: string, enum: [draft, sent, accepted, rejected, expired] }
+            taxType: { type: string, enum: [intra, inter] }
+            subtotal: { type: number }
+            totalDiscount: { type: number }
+            cgstTotal: { type: number }
+            sgstTotal: { type: number }
+            igstTotal: { type: number }
+            grandTotal: { type: number }
+            statusHistory: { type: array, items: { type: object } }
+            convertedToInvoice: { type: string, nullable: true }
+            createdBy: { type: string }
+            updatedBy: { type: string, nullable: true }
+security:
+  - bearerAuth: []
+paths:
+  /api/quotations:
+    post:
+      tags: [Quotations]
+      summary: Create draft quotation; number, state tax type and totals are server-generated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuotationInput' }
+      responses:
+        '201': { description: Created quotation }
+        '400': { description: Validation error }
+        '401': { description: Authentication required }
+    get:
+      tags: [Quotations]
+      summary: Search and filter quotations
+      parameters:
+        - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string, enum: [all, draft, sent, accepted, rejected, expired] } }
+        - { in: query, name: client, schema: { type: string } }
+        - { in: query, name: startDate, schema: { type: string, format: date-time } }
+        - { in: query, name: endDate, schema: { type: string, format: date-time } }
+        - { in: query, name: sort, schema: { type: string } }
+      responses:
+        '200': { description: Paginated quotation list }
+        '400': { description: Invalid filter }
+        '401': { description: Authentication required }
+  /api/quotations/stats/summary:
+    get:
+      tags: [Quotations]
+      summary: Counts and grand totals grouped by status
+      responses: { '200': { description: Summary by status }, '401': { description: Authentication required } }
+  /api/quotations/{id}:
+    parameters:
+      - { in: path, name: id, required: true, schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' } }
+    get:
+      tags: [Quotations]
+      summary: Get populated quotation details
+      responses: { '200': { description: Quotation }, '400': { description: Invalid ID }, '404': { description: Not found } }
+    put:
+      tags: [Quotations]
+      summary: Update a draft created by the current member, or any draft as admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuotationInput' }
+      responses: { '200': { description: Updated }, '400': { description: Locked or invalid }, '403': { description: Not owner }, '404': { description: Not found } }
+    delete:
+      tags: [Quotations]
+      summary: Delete a draft created by the current member, or any draft as admin
+      responses: { '200': { description: Deleted }, '400': { description: Not a draft }, '403': { description: Not owner }, '404': { description: Not found } }
+  /api/quotations/{id}/status:
+    patch:
+      tags: [Quotations]
+      summary: Change quotation status using allowed transitions
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties: { status: { type: string, enum: [sent, accepted, rejected, expired] } }
+      responses: { '200': { description: Updated status }, '400': { description: Invalid transition } }
+  /api/quotations/{id}/duplicate:
+    post:
+      tags: [Quotations]
+      summary: Clone quotation into new draft with new atomic number
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '201': { description: Duplicated quotation }, '404': { description: Not found } }
+  /api/quotations/{id}/pdf:
+    get:
+      tags: [Quotations]
+      summary: Download generated PDF
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: PDF attachment
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { description: Not found }
+  /api/quotations/{id}/send:
+    post:
+      tags: [Quotations]
+      summary: Email quotation PDF to client
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject: { type: string }
+                message: { type: string }
+                cc: { oneOf: [{ type: string, format: email }, { type: array, items: { type: string, format: email } }] }
+      responses: { '200': { description: Sent }, '400': { description: Invalid email request }, '502': { description: Mail delivery failed } }
+  /api/auth/login:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Sign in and issue an access token plus httpOnly refresh cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+      responses: { '200': { description: Authenticated }, '400': { description: Invalid request }, '401': { description: Invalid credentials } }
+  /api/auth/refresh:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Rotate the refresh cookie and issue a new access token
+      responses: { '200': { description: Session refreshed }, '401': { description: Invalid or expired refresh cookie } }
+  /api/auth/logout:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Revoke the current refresh token and clear its cookie
+      responses: { '200': { description: Logged out } }
+  /api/auth/forgot-password:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Request a password-reset email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses: { '200': { description: Request accepted }, '503': { description: Email service unavailable } }
+  /api/auth/reset-password:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Reset password using a single-use expiring token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties: { token: { type: string }, password: { type: string, minLength: 8 } }
+      responses: { '200': { description: Password reset }, '400': { description: Invalid or expired token } }
+  /api/auth/setup-admin:
+    post:
+      security: []
+      tags: [Authentication]
+      summary: Create the initial administrator only while no administrator exists
+      responses: { '201': { description: Administrator created }, '400': { description: Administrator already exists } }
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Retrieve live business totals, upcoming events, and recent activity
+      responses: { '200': { description: Dashboard summary }, '401': { description: Authentication required } }
+  /api/events:
+    get:
+      tags: [Calendar]
+      summary: List calendar tasks within an ISO date range
+      parameters:
+        - { in: query, name: startDate, required: true, schema: { type: string, format: date-time } }
+        - { in: query, name: endDate, required: true, schema: { type: string, format: date-time } }
+      responses: { '200': { description: Calendar tasks }, '400': { description: Invalid date range } }
+    post:
+      tags: [Calendar]
+      summary: Assign a timed task or create a bounded weekly/monthly recurring series
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, date, assignedTo]
+              properties:
+                title: { type: string, maxLength: 160 }
+                date: { type: string, format: date-time }
+                assignedTo: { type: string }
+                startTime: { type: string, example: '09:30' }
+                endTime: { type: string, example: '10:30' }
+                location: { type: string }
+                meetingUrl: { type: string, format: uri }
+                category: { type: string, enum: [general, meeting, deadline, leave, other] }
+                repeat: { type: string, enum: [none, weekly, monthly] }
+                repeatCount: { type: integer, minimum: 1, maximum: 52 }
+      responses: { '201': { description: Task created }, '400': { description: Invalid task or assignee } }
+  /api/invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices with filters and pagination
+      responses: { '200': { description: Invoice list }, '400': { description: Invalid filters } }
+    post:
+      tags: [Invoices]
+      summary: Create invoice with server-calculated numbering, GST, and totals
+      responses: { '201': { description: Invoice created }, '400': { description: Invalid invoice } }
+  /api/invoices/from-quotation/{id}:
+    post:
+      tags: [Invoices]
+      summary: Convert an accepted quotation into a single invoice
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '201': { description: Invoice created }, '400': { description: Quotation is not convertible } }
+  /api/invoices/{id}:
+    get:
+      tags: [Invoices]
+      summary: Retrieve invoice details
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '200': { description: Invoice }, '404': { description: Not found } }
+    put:
+      tags: [Invoices]
+      summary: Update an unpaid invoice (administrator only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '200': { description: Updated }, '403': { description: Forbidden } }
+    delete:
+      tags: [Invoices]
+      summary: Delete an invoice without recorded payments (administrator only)
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '200': { description: Deleted }, '400': { description: Invoice has payments } }
+  /api/invoices/{id}/pdf:
+    get:
+      tags: [Invoices]
+      summary: Download invoice PDF
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: PDF attachment
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /api/payments:
+    get:
+      tags: [Payments]
+      summary: List invoice payments and transaction details
+      responses: { '200': { description: Payment list } }
+    post:
+      tags: [Payments]
+      summary: Record a payment up to the invoice balance due
+      responses: { '201': { description: Payment recorded }, '400': { description: Invalid or excessive payment } }
+  /api/expenses:
+    get:
+      tags: [Expenses]
+      summary: List and summarize expenses
+      responses: { '200': { description: Expense list and category totals } }
+    post:
+      tags: [Expenses]
+      summary: Create an expense with an optional private receipt
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                category: { type: string }
+                description: { type: string }
+                amount: { type: number }
+                expenseDate: { type: string, format: date }
+                receipt: { type: string, format: binary }
+      responses: { '201': { description: Expense created }, '400': { description: Invalid expense or receipt } }
+  /api/reports:
+    get:
+      tags: [Reports]
+      summary: Retrieve financial and quotation summaries
+      parameters:
+        - { in: query, name: startDate, schema: { type: string, format: date } }
+        - { in: query, name: endDate, schema: { type: string, format: date } }
+      responses: { '200': { description: Report summary } }
+  /api/reports/export:
+    get:
+      tags: [Reports]
+      summary: Download the filtered report as Excel or PDF
+      parameters:
+        - { in: query, name: format, schema: { type: string, enum: [xlsx, pdf] } }
+      responses:
+        '200':
+          description: Exported report
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+  /api/logs:
+    get:
+      tags: [Activity Logs]
+      summary: Retrieve paginated activity audit logs (administrator only)
+      responses: { '200': { description: Audit log page }, '403': { description: Forbidden } }
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: List the current user's notifications and unread count
+      responses: { '200': { description: Notification list } }
+  /api/notifications/read-all:
+    patch:
+      tags: [Notifications]
+      summary: Mark all of the current user's notifications as read
+      responses: { '200': { description: Notifications updated } }
+  /api/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark one of the current user's notifications as read
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string } }
+      responses: { '200': { description: Notification updated }, '404': { description: Not found } }

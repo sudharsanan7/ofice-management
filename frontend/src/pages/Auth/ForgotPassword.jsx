@@ -4,19 +4,24 @@ import { Mail, ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { useToast } from '../../components/common/Toast';
+import apiClient from '../../api/client';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const response = await apiClient.post('/auth/forgot-password', { email });
+      showToast(response.message || 'If an active account exists for that email, reset instructions have been sent.', 'success');
+    } catch (error) {
+      showToast(error.message || 'Unable to request a password reset.', 'error');
+    } finally {
       setIsLoading(false);
-      showToast('Password reset link dispatched (Phase 2 feature)', 'info');
-    }, 600);
+    }
   };
 
   return (

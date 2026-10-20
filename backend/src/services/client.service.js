@@ -108,7 +108,7 @@ class ClientService {
 
     // Fetch related quotations and invoices
     const [quotations, invoices] = await Promise.all([
-      Quotation.find({ clientId: client._id }).sort({ createdAt: -1 }).lean(),
+      Quotation.find({ client: client._id }).sort({ createdAt: -1 }).lean(),
       Invoice.find({ clientId: client._id }).sort({ createdAt: -1 }).lean()
     ]);
 

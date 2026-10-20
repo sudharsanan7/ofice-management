@@ -152,11 +152,12 @@ describe('Client Management Module (Module 6)', () => {
       // Create test quotation for this client
       await Quotation.create({
         quotationNumber: 'QT/2026-27/0001',
-        clientId: client._id,
-        items: [{ description: 'Skynet Neural Network Architecture', quantity: 1, unitPrice: 200000, amount: 200000 }],
+        client: client._id,
+        items: [{ description: 'Skynet Neural Network Architecture', quantity: 1, unitPrice: 200000, gstRate: 18, lineSubtotal: 200000, lineTotal: 236000 }],
         subtotal: 200000,
-        totalAmount: 236000,
+        grandTotal: 236000,
         validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        statusHistory: [{ status: 'draft', changedBy: adminUser._id }, { status: 'sent', changedBy: adminUser._id }],
         status: 'sent',
         createdBy: adminUser._id
       });
@@ -205,7 +206,9 @@ describe('Client Management Module (Module 6)', () => {
       await Invoice.create({
         invoiceNumber: 'INV/2026-27/0002',
         clientId: client._id,
+        items: [{ description: 'Test service', quantity: 1, unitPrice: 50000, lineSubtotal: 50000, lineTotal: 50000 }],
         totalAmount: 50000,
+        grandTotal: 50000,
         balanceDue: 50000,
         dueDate: new Date(),
         createdBy: adminUser._id

@@ -1,26 +1,37 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, Mail, Lock } from 'lucide-react';
+import { Briefcase, Mail, Lock, ShieldCheck, UserRound } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { useToast } from '../../components/common/Toast';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Login() {
+  const [role, setRole] = useState('admin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const { login, loading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    // Placeholder demonstration
-    setTimeout(() => {
-      setIsLoading(false);
-      showToast('Login authentication will be activated in Phase 2.', 'info');
+
+    const normalizedEmail = email.trim();
+    const normalizedPassword = password;
+
+    if (!normalizedEmail || !normalizedPassword) {
+      showToast('Please enter both email and password.', 'error');
+      return;
+    }
+
+    const result = await login(normalizedEmail, normalizedPassword, role);
+    if (result.success) {
       navigate('/');
-    }, 600);
+      return;
+    }
+
+    showToast(result.message || 'Invalid email or password', 'error');
   };
 
   return (
@@ -34,13 +45,40 @@ export default function Login() {
           <p className="mt-1 text-xs text-slate-500">Centralized office management platform</p>
         </div>
 
+        <div
+          className="mt-6 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1"
+          role="tablist"
+          aria-label="Choose account type"
+        >
+          {[
+            { id: 'admin', label: 'Admin Login', icon: ShieldCheck },
+            { id: 'team_member', label: 'Employee Login', icon: UserRound }
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={role === id}
+              onClick={() => setRole(id)}
+              className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ${
+                role === id
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <Input
             label="Email Address"
             type="email"
             name="email"
             icon={Mail}
-            placeholder="admin@officeflow.local"
+            placeholder={role === 'admin' ? 'admin@company.com' : 'employee@company.com'}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -67,8 +105,8 @@ export default function Login() {
             </Link>
           </div>
 
-          <Button type="submit" variant="primary" className="w-full" isLoading={isLoading}>
-            Sign In
+          <Button type="submit" variant="primary" className="w-full" isLoading={loading}>
+            Sign In as {role === 'admin' ? 'Admin' : 'Employee'}
           </Button>
         </form>
 

@@ -19,12 +19,12 @@ const PERMISSIONS = {
   team_member: {
     users: ['read_profile', 'update_profile'],
     clients: ['create', 'read', 'update'],
-    quotations: ['create', 'read', 'update'],
-    invoices: ['create', 'read'],
+    quotations: ['create', 'read', 'update', 'delete', 'send'],
+    invoices: ['create', 'read', 'send'],
     payments: ['create', 'read'],
     expenses: ['create', 'read', 'update'],
     events: ['create', 'read', 'update'],
-    reports: ['read'],
+    reports: ['read', 'export'],
     settings: ['read'],
     logs: []
   }
@@ -40,11 +40,6 @@ const PERMISSIONS = {
 const hasPermission = (role, moduleName, action) => {
   if (!role || !PERMISSIONS[role]) {
     return false;
-  }
-
-  // Admin possesses wildcard access across defined modules
-  if (role === 'admin') {
-    return true;
   }
 
   const modulePerms = PERMISSIONS[role][moduleName];

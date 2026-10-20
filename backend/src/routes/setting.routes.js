@@ -3,8 +3,22 @@ const { getSettings, updateSettings } = require('../controllers/setting.controll
 const { verifyToken } = require('../middleware/auth.middleware');
 const { can } = require('../middleware/role.middleware');
 const { uploadLogo } = require('../middleware/upload.middleware');
+const validate = require('../middleware/validate.middleware');
+const { updateSettingSchema } = require('../validators/setting.validator');
+const { errorResponse } = require('../utils/apiResponse');
 
 const router = express.Router();
+const parseSettingsObjects = (req, res, next) => {
+  for (const key of ['address', 'numberingPrefixes', 'bankDetails']) {
+    if (typeof req.body[key] !== 'string') continue;
+    try {
+      req.body[key] = JSON.parse(req.body[key]);
+    } catch (_error) {
+      return errorResponse(res, { statusCode: 400, message: `The ${key} field must contain valid JSON.` });
+    }
+  }
+  return next();
+};
 
 // Authentication required for settings
 router.use(verifyToken);
@@ -45,6 +59,8 @@ router.put(
       next();
     });
   },
+  parseSettingsObjects,
+  validate(updateSettingSchema),
   updateSettings
 );
 

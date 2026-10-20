@@ -51,8 +51,69 @@ class MailerService {
       console.log(`[Mailer Mock] Welcome Email sent to: ${to}`);
       console.log(`[Mailer Mock] Set password URL: ${setupLink}`);
     }
+  }
 
-    return { success: true, link: setupLink };
+  async sendPasswordResetEmail({ to, name, token }) {
+    if (!this.transporter) throw new Error('Email transport is not configured');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    try {
+      await this.transporter.sendMail({
+        from: process.env.SMTP_FROM || 'noreply@officeflow.local',
+        to,
+        subject: 'Reset your OfficeFlow password',
+        text: `Hello ${name},\n\nUse the following link to reset your password. It expires in one hour:\n${resetLink}\n\nIf you did not request this, you can ignore this email.`
+      });
+    } catch (_error) {
+      throw new Error('Password reset email delivery failed');
+    }
+  }
+
+  /**
+   * Send quotation PDF to client
+   */
+  async sendQuotationEmail({ to, cc, subject, message, clientName, quotationNumber, pdfBuffer, companyName = 'OfficeFlow' }) {
+    if (!this.transporter) throw new Error('Email transport is not configured');
+    const emailSubject = subject || `Quotation ${quotationNumber} from ${companyName}`;
+    const body = message || `Please find attached quotation ${quotationNumber}. Please contact us if you need any clarification.`;
+    const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    const attachmentFilename = `${quotationNumber.replace(/[\/\\]/g, '-')}.pdf`;
+    try {
+      await this.transporter.sendMail({
+        from: process.env.SMTP_FROM || 'noreply@officeflow.local',
+        to,
+        ...(cc ? { cc } : {}),
+        subject: emailSubject,
+        text: `Dear ${clientName || 'Valued Client'},\n\n${body}\n\nWarm regards,\n${companyName}`,
+        html: `<div style="font-family:Arial,sans-serif;color:#1f2937;max-width:640px;margin:auto"><h2 style="color:#3730a3">${escapeHtml(companyName)}</h2><p>Dear ${escapeHtml(clientName || 'Valued Client')},</p><p>${escapeHtml(body).replace(/\n/g, '<br>')}</p><p>Warm regards,<br><strong>${escapeHtml(companyName)}</strong></p></div>`,
+        attachments: [{ filename: attachmentFilename, content: pdfBuffer, contentType: 'application/pdf' }]
+      });
+      return { success: true };
+    } catch (_error) {
+      throw new Error('SMTP delivery failed');
+    }
+  }
+
+  async sendInvoiceEmail({ to, cc, subject, message, clientName, invoiceNumber, pdfBuffer, companyName = 'OfficeFlow' }) {
+      if (!this.transporter) throw new Error('Email transport is not configured');
+      const emailSubject = subject || `Invoice ${invoiceNumber} from ${companyName}`;
+      const body = message || `Please find attached invoice ${invoiceNumber}.`;
+      const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+      const attachmentFilename = `${invoiceNumber.replace(/[\/\\]/g, '-')}.pdf`;
+      try {
+        await this.transporter.sendMail({
+          from: process.env.SMTP_FROM || 'noreply@officeflow.local',
+          to,
+          ...(cc ? { cc } : {}),
+          subject: emailSubject,
+          text: `Dear ${clientName || 'Valued Client'},\n\n${body}\n\nWarm regards,\n${companyName}`,
+          html: `<div style="font-family:Arial,sans-serif;color:#1f2937;max-width:640px;margin:auto"><h2 style="color:#3730a3">${escapeHtml(companyName)}</h2><p>Dear ${escapeHtml(clientName || 'Valued Client')},</p><p>${escapeHtml(body).replace(/\n/g, '<br>')}</p><p>Warm regards,<br><strong>${escapeHtml(companyName)}</strong></p></div>`,
+          attachments: [{ filename: attachmentFilename, content: pdfBuffer, contentType: 'application/pdf' }]
+        });
+        return { success: true };
+      } catch (_error) {
+        throw new Error('SMTP delivery failed');
+    }
   }
 }
 

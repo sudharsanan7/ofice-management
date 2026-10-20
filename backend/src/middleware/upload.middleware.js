@@ -47,6 +47,41 @@ const uploadLogo = multer({
   fileFilter
 });
 
+const receiptDir = path.join(__dirname, '../../uploads/receipts');
+if (!fs.existsSync(receiptDir)) {
+  fs.mkdirSync(receiptDir, { recursive: true });
+}
+
+const receiptStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, receiptDir),
+  filename: (_req, file, cb) => {
+    const randomHex = crypto.randomBytes(16).toString('hex');
+    cb(null, `receipt_${randomHex}${path.extname(file.originalname).toLowerCase()}`);
+  }
+});
+const receiptTypes = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp'
+};
+const receiptFilter = (_req, file, cb) => {
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (receiptTypes[extension] !== file.mimetype.toLowerCase()) {
+    const error = new Error('Invalid receipt format. Upload a PDF, PNG, JPG, or WebP file.');
+    error.statusCode = 400;
+    return cb(error, false);
+  }
+  return cb(null, true);
+};
+const uploadReceipt = multer({
+  storage: receiptStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: receiptFilter
+});
+
 module.exports = {
-  uploadLogo
+  uploadLogo,
+  uploadReceipt
 };

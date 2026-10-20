@@ -1,16 +1,37 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, Bell, Search, LogOut, User, ShieldCheck } from 'lucide-react';
+import { Menu, Bell, Search, LogOut, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Badge from '../common/Badge';
+import notificationsApi from '../../api/notifications.api';
+import { formatDateTime } from '../../utils/formatters';
+import { useToast } from '../../context/ToastContext';
 
 export default function Topbar({ onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  useEffect(() => {
+    notificationsApi.getNotifications({ limit: 10 })
+      .then((response) => {
+        setNotifications(response.data?.notifications || []);
+        setUnreadCount(response.data?.unreadCount || 0);
+      })
+      .catch((error) => showToast(error.message || 'Unable to load notifications.', 'error'));
+  }, [showToast]);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      showToast(error.message || 'Unable to complete server sign out.', 'error');
+    } finally {
+      navigate('/login');
+    }
   };
 
   return (
@@ -47,13 +68,21 @@ export default function Topbar({ onMenuClick }) {
         )}
 
         {/* Notifications */}
+        <div className="relative">
         <button
+          onClick={() => setNotificationsOpen((open) => !open)}
           className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus:outline-none"
           title="Notifications"
+          aria-label={`Notifications${unreadCount ? ` (${unreadCount} unread)` : ''}`}
         >
           <Bell className="h-5 w-5" />
-          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-indigo-600 ring-2 ring-white" />
+          {unreadCount > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? '9+' : unreadCount}</span>}
         </button>
+        {notificationsOpen && <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b px-4 py-3"><span className="text-sm font-semibold text-slate-800">Notifications</span>{unreadCount > 0 && <button className="text-xs font-medium text-indigo-600 hover:underline" onClick={() => notificationsApi.markAllRead().then(() => { setNotifications((items) => items.map((item) => ({ ...item, read: true }))); setUnreadCount(0); }).catch((error) => showToast(error.message || 'Unable to mark notifications read.', 'error'))}>Mark all read</button>}</div>
+          <div className="max-h-80 overflow-y-auto">{notifications.length ? notifications.map((notification) => <button key={notification._id} onClick={() => { if (!notification.read) notificationsApi.markRead(notification._id).then(() => { setNotifications((items) => items.map((item) => item._id === notification._id ? { ...item, read: true } : item)); setUnreadCount((count) => Math.max(0, count - 1)); }).catch((error) => showToast(error.message || 'Unable to mark notification read.', 'error')); setNotificationsOpen(false); }} className={`block w-full border-b px-4 py-3 text-left hover:bg-slate-50 ${notification.read ? '' : 'bg-indigo-50/50'}`}><span className="block text-sm font-medium text-slate-800">{notification.title}</span><span className="mt-1 block text-xs text-slate-600">{notification.message}</span><span className="mt-1 block text-[11px] text-slate-400">{formatDateTime(notification.createdAt)}</span></button>) : <p className="px-4 py-8 text-center text-sm text-slate-500">No notifications.</p>}</div>
+        </div>}
+        </div>
 
         <div className="h-6 w-px bg-slate-200" />
 

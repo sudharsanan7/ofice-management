@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import { useToast } from '../../components/common/Toast';
+import apiClient from '../../api/client';
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('');
@@ -11,19 +12,29 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || '';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!token) {
+      showToast('Password reset link is missing its token. Request a new link.', 'error');
+      return;
+    }
     if (password !== confirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      showToast('Password reset successfully (Phase 2 feature)', 'success');
+    try {
+      const response = await apiClient.post('/auth/reset-password', { token, password });
+      showToast(response.message || 'Password reset successfully. Please sign in.', 'success');
       navigate('/login');
-    }, 600);
+    } catch (error) {
+      showToast(error.message || 'Unable to reset password.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

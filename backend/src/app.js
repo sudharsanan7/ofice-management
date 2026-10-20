@@ -6,6 +6,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
+const swaggerUi = require('swagger-ui-express');
 
 const path = require('path');
 const healthRoutes = require('./routes/health.routes');
@@ -13,6 +14,15 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const settingRoutes = require('./routes/setting.routes');
 const clientRoutes = require('./routes/client.routes');
+const quotationRoutes = require('./routes/quotation.routes');
+const calendarEventRoutes = require('./routes/calendarEvent.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
+const invoiceRoutes = require('./routes/invoice.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const expenseRoutes = require('./routes/expense.routes');
+const reportRoutes = require('./routes/report.routes');
+const activityLogRoutes = require('./routes/activityLog.routes');
+const notificationRoutes = require('./routes/notification.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -71,10 +81,10 @@ app.use(mongoSanitize());
 // 8. Prevent HTTP Parameter Pollution
 app.use(hpp());
 
-// 9. Static Uploads File Serving (safe headers, non-executable)
+// Publicly serve company branding only; receipts are served through authenticated routes.
 app.use(
-  '/uploads',
-  express.static(path.join(__dirname, '../uploads'), {
+  '/uploads/company',
+  express.static(path.join(__dirname, '../uploads/company'), {
     dotfiles: 'ignore',
     setHeaders: (res) => {
       res.set('X-Content-Type-Options', 'nosniff');
@@ -88,6 +98,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/quotations', quotationRoutes);
+app.use('/api/events', calendarEventRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/logs', activityLogRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.get('/openapi.yaml', (_req, res) => res.sendFile(path.join(__dirname, '../../docs/openapi.yaml')));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/openapi.yaml' } }));
 
 // 10. 404 Route Handler
 app.use(notFoundHandler);

@@ -26,6 +26,7 @@ class UserService {
     // Generate a secure one-time invitation token and temporary random password
     const invitationToken = crypto.randomBytes(32).toString('hex');
     const tempPassword = crypto.randomBytes(8).toString('base64');
+    const resetPasswordToken = crypto.createHash('sha256').update(invitationToken).digest('hex');
 
     const newUser = new User({
       name: data.name,
@@ -35,8 +36,8 @@ class UserService {
       designation: data.designation || 'Team Member',
       role: assignedRole,
       status: 'active',
-      invitationToken,
-      invitationExpires: new Date(Date.now() + 48 * 60 * 60 * 1000) // 48 hours
+      resetPasswordToken,
+      resetPasswordExpires: new Date(Date.now() + 48 * 60 * 60 * 1000)
     });
 
     await newUser.save();

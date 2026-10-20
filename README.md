@@ -9,6 +9,7 @@ OfficeFlow is a centralized full-stack MERN web application engineered to manage
 - **Centralized Operations**: Manage daily business workflows, schedules, quotations, invoices, and expenses in one secure platform.
 - **Role-Based Access Control**: Strict backend-enforced authorization differentiating Administrator and Team Member capabilities.
 - **Financial Integrity**: Server-computed totals, discounts, GST (18%), and balance tracking with zero client-side trust.
+- **Quotation Management**: Financial-year sequential quotation numbers, server-side GST/discount calculation, draft ownership, status history, expiry automation, downloadable PDFs, and email delivery.
 - **Document Generation**: Automated PDF generation for quotations and invoices using PDFKit, and spreadsheet exports via ExcelJS.
 - **Auditability**: Complete activity logging capturing actor, action, target entity, timestamp, and metadata.
 
@@ -108,8 +109,12 @@ NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 MONGO_URI=mongodb://localhost:27017/officeflow
 JWT_SECRET=your_jwt_secret_key_min_32_characters_placeholder
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=your_refresh_secret_key_min_32_characters_placeholder
+JWT_REFRESH_EXPIRES_IN=7d
 ```
+
+Use unique random JWT secrets of at least 32 characters in production. The application does not ship with a default administrator password. Either set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env` to seed the first administrator, or start the backend and create one exactly once with `POST /api/auth/setup-admin` using `name`, `email`, and a password of at least eight characters. Configure SMTP to enable password-reset email delivery.
 
 #### Frontend
 ```bash
@@ -159,11 +164,27 @@ Frontend runs at: `http://localhost:5173`
 cd backend
 npm test
 ```
-Executes Jest test suites verifying health routes, 404 handler, error formatting, and Indian Financial Year sequential number generation.
+Executes the Jest test suites. Integration tests use the MongoDB database configured by `MONGO_URI_TEST` (default: `officeflow_test`).
 
 ---
 
-## 8. Commit Conventions
+## 8. API Documentation
+
+The OpenAPI specification for authentication, calendar, dashboard, quotations, billing, reports, logs, and notifications is maintained in [docs/openapi.yaml](docs/openapi.yaml). When the backend is running, interactive Swagger UI is available at `http://localhost:5000/api-docs`.
+
+---
+
+## 9. Implemented Business Workflows
+
+- Create GST-calculated invoices directly or convert accepted quotations; edit unpaid invoices and email/download PDF copies.
+- Record partial or full payments, automatically updating invoice paid/balance/status values.
+- Track categorized expenses with optional private receipt uploads.
+- Review dashboard totals, financial reports and monthly trends; export report summaries as Excel or PDF.
+- Schedule calendar tasks in month, week, or day views with timed details and bounded weekly/monthly recurrence.
+- Review in-app notifications and administrator audit logs.
+- Use rotating httpOnly refresh tokens, logout, password recovery, and invitation password setup. Password reset and invoice email delivery require working SMTP.
+
+## 10. Commit Conventions
 
 All commits follow the Conventional Commits specification:
 - `feat:` New user-facing feature or API endpoint
