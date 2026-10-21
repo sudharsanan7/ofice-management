@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CircleCheck,
   Clock3,
+  Pencil,
   Plus,
   Trash2
 } from 'lucide-react';
@@ -16,9 +17,16 @@ import calendarApi from '../../api/calendar.api';
 import { useAuth } from '../../context/AuthContext';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const CATEGORY_COLORS = {
+  general: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  meeting: 'bg-sky-50 text-sky-700 border-sky-200',
+  deadline: 'bg-rose-50 text-rose-700 border-rose-200',
+  leave: 'bg-amber-50 text-amber-700 border-amber-200',
+  other: 'bg-purple-50 text-purple-700 border-purple-200'
+};
 const EMPTY_FORM = {
   title: '', description: '', date: '', assignedTo: '', startTime: '', endTime: '',
-  location: '', meetingUrl: '', category: 'general', repeat: 'none', repeatCount: 1
+  location: '', meetingUrl: '', category: 'general', repeat: 'none', repeatCount: 1, status: 'todo'
 };
 
 function dateKey(date) {
@@ -68,8 +76,9 @@ function formatCalendarHeading(date, view) {
   return formatMonth(date);
 }
 
-function CalendarTask({ event, onStatusChange, onDelete, canDelete }) {
+function CalendarTask({ event, onStatusChange, onEdit, onDelete, canDelete }) {
   const statusLabel = event.status === 'done' ? 'Completed' : event.status === 'in_progress' ? 'In progress' : 'To do';
+  const categoryBadge = CATEGORY_COLORS[event.category] || CATEGORY_COLORS.general;
   return (
     <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-3">
       <button
@@ -82,26 +91,43 @@ function CalendarTask({ event, onStatusChange, onDelete, canDelete }) {
         <CircleCheck className="h-4 w-4" />
       </button>
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-sm font-medium ${event.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-          {event.title}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className={`truncate text-sm font-medium ${event.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+            {event.title}
+          </p>
+          <span className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold capitalize ${categoryBadge}`}>
+            {event.category || 'general'}
+          </span>
+        </div>
         <p className="mt-0.5 text-xs text-slate-500">
           {event.assignedTo?.name || 'Unknown assignee'} · {statusLabel}
         </p>
-        {(event.startTime || event.location || event.category !== 'general') && <p className="mt-1 text-xs capitalize text-slate-500">{[event.startTime && `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}`, event.category !== 'general' && event.category, event.location].filter(Boolean).join(' · ')}</p>}
+        {(event.startTime || event.location) && <p className="mt-1 text-xs text-slate-500">{[event.startTime && `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}`, event.location].filter(Boolean).join(' · ')}</p>}
         {event.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{event.description}</p>}
         {event.meetingUrl && <a href={event.meetingUrl} target="_blank" rel="noreferrer" className="mt-1 block truncate text-xs text-indigo-600 hover:underline">Join meeting</a>}
       </div>
-      {canDelete && (
+      <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          onClick={() => onDelete(event)}
-          aria-label={`Delete ${event.title}`}
-          className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+          onClick={() => onEdit(event)}
+          aria-label={`Edit ${event.title}`}
+          title="Edit event"
+          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
         >
-          <Trash2 className="h-4 w-4" />
+          <Pencil className="h-4 w-4" />
         </button>
-      )}
+        {canDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(event)}
+            aria-label={`Delete ${event.title}`}
+            title="Delete event"
+            className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -116,6 +142,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const gridDates = useMemo(() => getViewDates(month, view), [month, view]);
@@ -152,24 +179,62 @@ export default function CalendarPage() {
   }, {}), [events]);
 
   const openCreateDialog = (date = new Date()) => {
+    setEditingEvent(null);
     setForm({ ...EMPTY_FORM, date: dateKey(date), assignedTo: assignees[0]?._id || '' });
     setModalOpen(true);
   };
 
-  const handleCreate = async (event) => {
+  const openEditDialog = (event) => {
+    setEditingEvent(event);
+    setForm({
+      title: event.title || '',
+      description: event.description || '',
+      date: dateKey(new Date(event.date)),
+      assignedTo: event.assignedTo?._id || event.assignedTo || '',
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
+      location: event.location || '',
+      meetingUrl: event.meetingUrl || '',
+      category: event.category || 'general',
+      repeat: 'none',
+      repeatCount: 1,
+      status: event.status || 'todo'
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async (event) => {
     event.preventDefault();
     setSaving(true);
     try {
-      await calendarApi.createEvent({
-        ...form,
-        repeatCount: Number(form.repeatCount),
-        date: new Date(`${form.date}T12:00:00`).toISOString()
-      });
-      showToast(form.repeat === 'none' ? 'Task assigned successfully.' : `${form.repeatCount} recurring tasks assigned.`, 'success');
+      if (editingEvent) {
+        await calendarApi.updateEvent(editingEvent._id, {
+          title: form.title,
+          description: form.description,
+          date: new Date(`${form.date}T12:00:00`).toISOString(),
+          assignedTo: form.assignedTo,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          location: form.location,
+          meetingUrl: form.meetingUrl,
+          category: form.category,
+          status: form.status
+        });
+        showToast('Task updated successfully.', 'success');
+      } else {
+        const { status: _unusedStatus, ...createPayload } = form;
+        await calendarApi.createEvent({
+          ...createPayload,
+          repeatCount: Number(form.repeatCount),
+          date: new Date(`${form.date}T12:00:00`).toISOString()
+        });
+        showToast(form.repeat === 'none' ? 'Task assigned successfully.' : `${form.repeatCount} recurring tasks assigned.`, 'success');
+      }
       setModalOpen(false);
+      setEditingEvent(null);
       await loadCalendar();
     } catch (error) {
-      showToast(error.message || 'Could not assign task.', 'error');
+      showToast(error.message || 'Could not save task.', 'error');
     } finally {
       setSaving(false);
     }
@@ -251,11 +316,16 @@ export default function CalendarPage() {
                     {date.getDate()}
                   </span>
                   <span className="mt-1 flex flex-col gap-1">
-                    {dayEvents.slice(0, 2).map((item) => (
-                      <span key={item._id} className={`truncate rounded px-1 py-0.5 text-[10px] sm:text-xs ${item.status === 'done' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                        {item.startTime ? `${item.startTime} ${item.title}` : item.title}
-                      </span>
-                    ))}
+                    {dayEvents.slice(0, 2).map((item) => {
+                      const pillColor = item.status === 'done'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : CATEGORY_COLORS[item.category] || 'bg-indigo-50 text-indigo-700';
+                      return (
+                        <span key={item._id} className={`truncate rounded px-1 py-0.5 text-[10px] sm:text-xs ${pillColor}`}>
+                          {item.startTime ? `${item.startTime} ${item.title}` : item.title}
+                        </span>
+                      );
+                    })}
                     {dayEvents.length > 2 && <span className="px-1 text-[10px] text-slate-500">+{dayEvents.length - 2} more</span>}
                   </span>
                 </button>
@@ -276,7 +346,7 @@ export default function CalendarPage() {
             {events.map((event) => (
               <div key={event._id} className="relative">
                 <p className="mb-1 ml-1 text-xs font-medium text-slate-500">{formatTaskDate(event.date)}</p>
-                <CalendarTask event={event} onStatusChange={handleStatusChange} onDelete={handleDelete} canDelete={isAdmin} />
+                <CalendarTask event={event} onStatusChange={handleStatusChange} onEdit={openEditDialog} onDelete={handleDelete} canDelete={isAdmin} />
               </div>
             ))}
           </div>
@@ -289,8 +359,8 @@ export default function CalendarPage() {
         )}
       </section>
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Assign a task" subtitle="Choose a date and team member for this task.">
-        <form onSubmit={handleCreate} className="space-y-4">
+      <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditingEvent(null); }} title={editingEvent ? 'Edit task' : 'Assign a task'} subtitle="Choose a date and team member for this task.">
+        <form onSubmit={handleSave} className="space-y-4">
           <Input
             label="Task title"
             name="task-title"
@@ -327,10 +397,14 @@ export default function CalendarPage() {
             <Input label="Location" name="task-location" maxLength={300} value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} />
           </div>
           <Input label="Meeting link (optional)" name="task-meeting-url" type="url" value={form.meetingUrl} onChange={(event) => setForm((current) => ({ ...current, meetingUrl: event.target.value }))} placeholder="https://" />
-          <div className="grid grid-cols-2 gap-3">
-            <div><label htmlFor="task-repeat" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Repeat</label><select id="task-repeat" value={form.repeat} onChange={(event) => setForm((current) => ({ ...current, repeat: event.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="none">Does not repeat</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
-            {form.repeat !== 'none' && <Input label="Occurrences (max 52)" name="task-repeat-count" type="number" min="2" max="52" required value={form.repeatCount} onChange={(event) => setForm((current) => ({ ...current, repeatCount: event.target.value }))} />}
-          </div>
+          {!editingEvent ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div><label htmlFor="task-repeat" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Repeat</label><select id="task-repeat" value={form.repeat} onChange={(event) => setForm((current) => ({ ...current, repeat: event.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="none">Does not repeat</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
+              {form.repeat !== 'none' && <Input label="Occurrences (max 52)" name="task-repeat-count" type="number" min="2" max="52" required value={form.repeatCount} onChange={(event) => setForm((current) => ({ ...current, repeatCount: event.target.value }))} />}
+            </div>
+          ) : (
+            <div><label htmlFor="task-status" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Status</label><select id="task-status" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option></select></div>
+          )}
           <div>
             <label htmlFor="task-assignee" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700">Assign to <span className="text-rose-500">*</span></label>
             <select
@@ -348,8 +422,8 @@ export default function CalendarPage() {
             {!assignees.length && <p className="mt-1 text-xs text-rose-600">No active team members are available to assign.</p>}
           </div>
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
-            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button type="submit" isLoading={saving} disabled={!assignees.length || (form.startTime && form.endTime && form.endTime <= form.startTime)}>Assign task</Button>
+            <Button variant="outline" onClick={() => { setModalOpen(false); setEditingEvent(null); }}>Cancel</Button>
+            <Button type="submit" isLoading={saving} disabled={!assignees.length || (form.startTime && form.endTime && form.endTime <= form.startTime)}>{editingEvent ? 'Save changes' : 'Assign task'}</Button>
           </div>
         </form>
       </Modal>

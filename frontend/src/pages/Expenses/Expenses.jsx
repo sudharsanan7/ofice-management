@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, Pencil, Plus, Trash2, Wallet } from 'lucide-react';
+import { Download, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Table from '../../components/common/Table';
 import Modal from '../../components/common/Modal';
@@ -23,15 +23,25 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({ category: 'office_supplies', description: '', amount: '', expenseDate: today, receipt: null });
 
   const load = useCallback(() => {
     setLoading(true);
-    expensesApi.getExpenses({ limit: 100 })
+    expensesApi.getExpenses({
+      limit: 100,
+      category: categoryFilter !== 'all' ? categoryFilter : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      search: search.trim() || undefined
+    })
       .then((response) => { setExpenses(response.data?.expenses || []); setSummary(response.data?.summary || { totalAmount: 0, count: 0 }); })
       .catch((error) => showToast(error.message || 'Unable to load expenses.', 'error'))
       .finally(() => setLoading(false));
-  }, [showToast]);
+  }, [categoryFilter, startDate, endDate, search, showToast]);
   useEffect(() => { load(); }, [load]);
 
   const saveExpense = async (event) => {
@@ -104,6 +114,12 @@ export default function ExpensesPage() {
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><Wallet size={22} /> Expense Tracking</h1><p className="mt-1 text-sm text-slate-500">Record company expenses and attach receipts</p></div><Button icon={Plus} onClick={() => setOpen(true)}>Add Expense</Button></div>
     <div className="grid gap-4 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-500">Expenses recorded</p><p className="mt-2 text-2xl font-bold text-slate-900">{summary.count}</p></div><div className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs font-semibold uppercase text-slate-500">Total amount</p><p className="mt-2 text-2xl font-bold text-slate-900">{formatCurrency(summary.totalAmount)}</p></div></div>
+    <section className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Input label="Search" name="expenseSearch" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search description..." icon={Search} />
+      <div><label htmlFor="filterCategory" className="mb-1 block text-xs font-semibold uppercase text-slate-700">Category</label><select id="filterCategory" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="all">All categories</option>{categories.map((cat) => <option key={cat} value={cat}>{cat.replaceAll('_', ' ')}</option>)}</select></div>
+      <Input label="From date" name="startDate" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+      <Input label="To date" name="endDate" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+    </section>
     <Table columns={columns} data={expenses} isLoading={loading} emptyMessage="No expenses recorded" emptySubtext="Record office costs, travel, utilities, or other expenses." />
     {open && <Modal isOpen onClose={() => { setOpen(false); setEditTarget(null); }} title={editTarget ? 'Edit expense' : 'Add expense'}><form onSubmit={saveExpense} className="space-y-4">
       <div><label htmlFor="expenseCategory" className="mb-1 block text-xs font-semibold uppercase text-slate-600">Category</label><select id="expenseCategory" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">{categories.map((category) => <option key={category} value={category}>{category.replaceAll('_', ' ')}</option>)}</select></div>

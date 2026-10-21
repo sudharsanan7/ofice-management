@@ -64,7 +64,8 @@ export default function PaymentsPage() {
     { header: 'Invoice #', key: 'invoice', render: (row) => row.invoice?.invoiceNumber || '—' },
     { header: 'Client', key: 'client', render: (row) => row.client?.companyName || row.client?.contactPerson || '—' },
     { header: 'Date', key: 'paymentDate', render: (row) => formatDate(row.paymentDate) },
-    { header: 'Method', key: 'method', render: (row) => row.method?.replaceAll('_', ' ') },
+    { header: 'Method', key: 'method', render: (row) => <span className="capitalize">{row.method?.replaceAll('_', ' ')}</span> },
+    { header: 'Reference #', key: 'referenceNumber', render: (row) => <span className="font-mono text-xs text-slate-600">{row.referenceNumber || '—'}</span> },
     { header: 'Amount', key: 'amount', align: 'right', render: (row) => formatCurrency(row.amount) },
     ...(isAdmin ? [{ header: 'Actions', key: 'actions', align: 'right', render: (row) => <button title="Delete payment" onClick={() => setDeleteTarget(row)} className="rounded p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 size={16} /></button> }] : [])
   ];

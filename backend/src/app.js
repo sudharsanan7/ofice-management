@@ -9,6 +9,7 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 
 const path = require('path');
+const fs = require('fs');
 const healthRoutes = require('./routes/health.routes');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -26,9 +27,10 @@ const notificationRoutes = require('./routes/notification.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // 1. Security HTTP Headers
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // 2. CORS Configuration - Allow only FRONTEND_URL with credentials
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -109,6 +111,18 @@ app.use('/api/logs', activityLogRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.get('/openapi.yaml', (_req, res) => res.sendFile(path.join(__dirname, '../../docs/openapi.yaml')));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/openapi.yaml' } }));
+
+// Serve built React frontend in production when available
+const frontendDist = path.join(__dirname, '../../frontend/dist');
+if (process.env.NODE_ENV === 'production' && fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/api-docs')) {
+      return next();
+    }
+    return res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 
 // 10. 404 Route Handler
 app.use(notFoundHandler);
