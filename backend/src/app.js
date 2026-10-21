@@ -32,21 +32,32 @@ app.set('trust proxy', 1);
 // 1. Security HTTP Headers
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// 2. CORS Configuration - Allow only FRONTEND_URL with credentials
+// 2. CORS Configuration - Allow FRONTEND_URL, RENDER_EXTERNAL_URL, and same-origin requests
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+const renderUrl = process.env.RENDER_EXTERNAL_URL;
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server) or matching FRONTEND_URL
-      if (!origin || origin === frontendUrl || origin === 'http://localhost:5173') {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS policy`));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  cors((req, callback) => {
+    const origin = req.header('Origin');
+    const hostOrigin = `${req.protocol}://${req.get('host')}`;
+    const isAllowed =
+      !origin ||
+      origin === frontendUrl ||
+      origin === renderUrl ||
+      origin === hostOrigin ||
+      origin === 'http://localhost:5173' ||
+      origin.endsWith('.onrender.com') ||
+      origin.endsWith('.vercel.app');
+
+    if (isAllowed) {
+      callback(null, {
+        origin: true,
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+      });
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS policy`));
+    }
   })
 );
 
@@ -112,9 +123,9 @@ app.use('/api/notifications', notificationRoutes);
 app.get('/openapi.yaml', (_req, res) => res.sendFile(path.join(__dirname, '../../docs/openapi.yaml')));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(null, { swaggerOptions: { url: '/openapi.yaml' } }));
 
-// Serve built React frontend in production when available
+// Serve built React frontend when available (outside test suite)
 const frontendDist = path.join(__dirname, '../../frontend/dist');
-if (process.env.NODE_ENV === 'production' && fs.existsSync(frontendDist)) {
+if (process.env.NODE_ENV !== 'test' && fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/api-docs')) {
